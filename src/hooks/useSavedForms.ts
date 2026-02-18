@@ -63,5 +63,27 @@ export function useSavedForms() {
     }
   }, []);
 
-  return { forms, addForm, removeForm, loading };
+  const refreshForm = useCallback(async (id: string): Promise<SavedForm | null> => {
+    const { data, error } = await supabase
+      .from("saved_forms")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (!error && data) {
+      const refreshed: SavedForm = {
+        id: data.id,
+        name: data.name,
+        snippet: data.snippet,
+        createdAt: data.created_at,
+      };
+      setForms((prev) =>
+        prev.map((f) => (f.id === refreshed.id ? refreshed : f))
+      );
+      return refreshed;
+    }
+    return null;
+  }, []);
+
+  return { forms, addForm, removeForm, refreshForm, loading };
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface SavedForm {
   id: string;
@@ -7,42 +8,60 @@ export interface SavedForm {
   createdAt: string;
 }
 
-const STORAGE_KEY = "formhub_saved_forms";
-
-function loadFromStorage(): SavedForm[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveToStorage(forms: SavedForm[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(forms));
-}
-
 export function useSavedForms() {
-  const [forms, setForms] = useState<SavedForm[]>(loadFromStorage);
+  const [forms, setForms] = useState<SavedForm[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    saveToStorage(forms);
-  }, [forms]);
+  const fetchForms = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("saved_forms")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-  const addForm = useCallback((name: string, snippet: string) => {
-    const newForm: SavedForm = {
-      id: crypto.randomUUID(),
-      name: name.trim() || `Formulario ${forms.length + 1}`,
-      snippet,
-      createdAt: new Date().toISOString(),
-    };
-    setForms((prev) => [newForm, ...prev]);
-    return newForm;
-  }, [forms.length]);
-
-  const removeForm = useCallback((id: string) => {
-    setForms((prev) => prev.filter((f) => f.id !== id));
+    if (!error && data) {
+      setForms(
+        data.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          snippet: row.snippet,
+          createdAt: row.created_at,
+        }))
+      );
+    }
+    setLoading(false);
   }, []);
 
-  return { forms, addForm, removeForm };
+  useEffect(() => {
+    fetchForms();
+  }, [fetchForms]);
+
+  const addForm = useCallback(async (name: string, snippet: string) => {
+    const trimmedName = name.trim() || `Formulario ${Date.now()}`;
+    const { data, error } = await supabase
+      .from("saved_forms")
+      .insert({ name: trimmedName, snippet })
+      .select()
+      .single();
+
+    if (!error && data) {
+      const newForm: SavedForm = {
+        id: data.id,
+        name: data.name,
+        snippet: data.snippet,
+        createdAt: data.created_at,
+      };
+      setForms((prev) => [newForm, ...prev]);
+      return newForm;
+    }
+    return null;
+  }, []);
+
+  const removeForm = useCallback(async (id: string) => {
+    const { error } = await supabase.from("saved_forms").delete().eq("id", id);
+    if (!error) {
+      setForms((prev) => prev.filter((f) => f.id !== id));
+    }
+  }, []);
+
+  return { forms, addForm, removeForm, loading };
 }

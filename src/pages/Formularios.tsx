@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Play, Code2, X, Archive, Clock, FileText } from "lucide-react";
+import { Plus, Trash2, Play, Code2, X, Archive, Clock, FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLogs } from "@/contexts/LogsContext";
 import { useSavedForms, SavedForm } from "@/hooks/useSavedForms";
@@ -11,9 +11,11 @@ export default function Formularios() {
   const [showInput, setShowInput] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [activeFormId, setActiveFormId] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const { addLog } = useLogs();
-  const { forms, addForm, removeForm } = useSavedForms();
+  const { forms, addForm, removeForm, refreshForm } = useSavedForms();
 
   const renderSnippet = useCallback((snippetContent: string) => {
     if (!snippetContent.trim() || !containerRef.current) return;
@@ -89,10 +91,36 @@ export default function Formularios() {
     setFormName("");
   }, [snippet, formName, addForm, renderSnippet]);
 
-  const loadSavedForm = useCallback((form: SavedForm) => {
+  const loadSavedForm = useCallback(async (form: SavedForm) => {
+    // Cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setActiveFormId(form.id);
-    renderSnippet(form.snippet);
-  }, [renderSnippet]);
+    setReloading(true);
+
+    const refreshed = await refreshForm(form.id);
+    if (controller.signal.aborted) return;
+
+    renderSnippet(refreshed ? refreshed.snippet : form.snippet);
+    setReloading(false);
+  }, [renderSnippet, refreshForm]);
+
+  const handleReload = useCallback(async () => {
+    if (!activeFormId) return;
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setReloading(true);
+    const refreshed = await refreshForm(activeFormId);
+    if (controller.signal.aborted) return;
+
+    if (refreshed) renderSnippet(refreshed.snippet);
+    setReloading(false);
+    addLog("info", "Datos del formulario recargados");
+  }, [activeFormId, refreshForm, renderSnippet, addLog]);
 
   const deleteSavedForm = useCallback((id: string) => {
     removeForm(id);
@@ -198,11 +226,31 @@ export default function Formularios() {
           transition={{ delay: 0.1 }}
           className="glass-card min-h-[400px] p-6 lg:col-span-2"
         >
-          {!loaded && !showInput && (
+          {!loaded && !showInput && !reloading && (
             <div className="flex h-[350px] flex-col items-center justify-center gap-4 text-muted-foreground">
               <Code2 className="h-12 w-12 opacity-40" />
               <p className="text-sm">Ningún formulario cargado</p>
               <p className="text-xs">Usá el botón + para pegar un snippet</p>
+            </div>
+          )}
+          {reloading && (
+            <div className="flex h-[350px] flex-col items-center justify-center gap-3 text-muted-foreground">
+              <RefreshCw className="h-8 w-8 animate-spin opacity-40" />
+              <p className="text-sm">Cargando formulario…</p>
+            </div>
+          )}
+          {loaded && activeFormId && (
+            <div className="mb-4 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReload}
+                disabled={reloading}
+                className="gap-2"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${reloading ? "animate-spin" : ""}`} />
+                Recargar datos
+              </Button>
             </div>
           )}
           <div ref={containerRef} className="dynamics-form-container" />

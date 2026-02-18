@@ -79,10 +79,10 @@ export default function Formularios() {
     }
   }, [addLog]);
 
-  const loadForm = useCallback(() => {
+  const loadForm = useCallback(async () => {
     if (!snippet.trim()) return;
-    const saved = addForm(formName, snippet);
-    setActiveFormId(saved.id);
+    const saved = await addForm(formName, snippet);
+    if (saved) setActiveFormId(saved.id);
     renderSnippet(snippet);
     setShowInput(false);
     setSnippet("");

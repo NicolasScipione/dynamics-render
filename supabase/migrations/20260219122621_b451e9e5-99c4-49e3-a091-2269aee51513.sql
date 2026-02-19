@@ -1,0 +1,1 @@
+CREATE POLICY "Allow all update" ON public.saved_forms FOR UPDATE USING (true) WITH CHECK (true);

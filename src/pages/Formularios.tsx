@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Trash2, Play, Code2, X, Archive, Clock, FileText, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Play, Code2, X, Archive, Clock, FileText, RefreshCw, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLogs } from "@/contexts/LogsContext";
 import { useSavedForms, SavedForm } from "@/hooks/useSavedForms";
@@ -12,10 +12,12 @@ export default function Formularios() {
   const [loaded, setLoaded] = useState(false);
   const [activeFormId, setActiveFormId] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const { addLog } = useLogs();
-  const { forms, addForm, removeForm, refreshForm } = useSavedForms();
+  const { forms, addForm, removeForm, refreshForm, updateFormName } = useSavedForms();
 
   const renderSnippet = useCallback((snippetContent: string) => {
     if (!snippetContent.trim() || !containerRef.current) return;
@@ -129,8 +131,23 @@ export default function Formularios() {
       setLoaded(false);
       setActiveFormId(null);
     }
+    if (editingId === id) setEditingId(null);
     addLog("info", "Formulario eliminado del historial");
-  }, [removeForm, activeFormId, addLog]);
+  }, [removeForm, activeFormId, editingId, addLog]);
+
+  const startEditing = useCallback((form: SavedForm, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(form.id);
+    setEditName(form.name);
+  }, []);
+
+  const saveEditing = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editingId) return;
+    const ok = await updateFormName(editingId, editName);
+    if (ok) addLog("info", "Nombre del formulario actualizado");
+    setEditingId(null);
+  }, [editingId, editName, updateFormName, addLog]);
 
   const clearForm = useCallback(() => {
     if (containerRef.current) containerRef.current.innerHTML = "";
@@ -191,9 +208,23 @@ export default function Formularios() {
                     <FileText className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {form.name}
-                    </p>
+                    {editingId === form.id ? (
+                      <input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEditing(e as any);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                        autoFocus
+                        className="w-full rounded border border-border bg-muted px-2 py-0.5 text-sm font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    ) : (
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {form.name}
+                      </p>
+                    )}
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {new Date(form.createdAt).toLocaleDateString("es-AR", {
@@ -204,6 +235,21 @@ export default function Formularios() {
                       })}
                     </div>
                   </div>
+                  {editingId === form.id ? (
+                    <button
+                      onClick={saveEditing}
+                      className="rounded-md p-1.5 text-primary transition-all hover:bg-primary/10"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => startEditing(form, e)}
+                      className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-secondary hover:text-foreground group-hover:opacity-100"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

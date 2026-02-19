@@ -63,6 +63,22 @@ export function useSavedForms() {
     }
   }, []);
 
+  const updateFormName = useCallback(async (id: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return false;
+    const { error } = await supabase
+      .from("saved_forms")
+      .update({ name: trimmed })
+      .eq("id", id);
+    if (!error) {
+      setForms((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, name: trimmed } : f))
+      );
+      return true;
+    }
+    return false;
+  }, []);
+
   const refreshForm = useCallback(async (id: string): Promise<SavedForm | null> => {
     const { data, error } = await supabase
       .from("saved_forms")
@@ -85,5 +101,5 @@ export function useSavedForms() {
     return null;
   }, []);
 
-  return { forms, addForm, removeForm, refreshForm, loading };
+  return { forms, addForm, removeForm, refreshForm, updateFormName, loading };
 }

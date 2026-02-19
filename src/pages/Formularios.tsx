@@ -19,7 +19,12 @@ export default function Formularios() {
   const { addLog } = useLogs();
   const { forms, addForm, removeForm, refreshForm, updateFormName } = useSavedForms();
 
-  const renderSnippet = useCallback((snippetContent: string) => {
+  // Helper to find active form info
+  const getActiveForm = useCallback(() => {
+    return forms.find((f) => f.id === activeFormId) ?? null;
+  }, [forms, activeFormId]);
+
+  const renderSnippet = useCallback((snippetContent: string, fId?: string | null, fName?: string | null) => {
     if (!snippetContent.trim() || !containerRef.current) return;
 
     containerRef.current.innerHTML = "";
@@ -42,7 +47,7 @@ export default function Formularios() {
       });
 
       containerRef.current.innerHTML = temp.innerHTML;
-      addLog("info", "HTML del formulario insertado correctamente");
+      addLog("info", "HTML del formulario insertado correctamente", fId, fName);
 
       const executeScripts = async () => {
         for (const script of scriptSources) {
@@ -53,11 +58,11 @@ export default function Formularios() {
                 el.src = script.src!;
                 el.async = true;
                 el.onload = () => {
-                  addLog("success", `Script cargado: ${script.src}`);
+                  addLog("success", `Script cargado: ${script.src}`, fId, fName);
                   resolve();
                 };
                 el.onerror = () => {
-                  addLog("error", `Error cargando script: ${script.src}`);
+                  addLog("error", `Error cargando script: ${script.src}`, fId, fName);
                   reject(new Error(`Failed to load: ${script.src}`));
                 };
                 document.body.appendChild(el);
@@ -66,28 +71,32 @@ export default function Formularios() {
               const el = document.createElement("script");
               el.textContent = script.inline;
               document.body.appendChild(el);
-              addLog("success", "Script inline ejecutado");
+              addLog("success", "Script inline ejecutado", fId, fName);
             }
           } catch (err: any) {
-            addLog("error", err.message);
+            addLog("error", err.message, fId, fName);
           }
         }
       };
 
       executeScripts().then(() => {
         setLoaded(true);
-        addLog("success", "Formulario renderizado completamente");
+        addLog("success", "Formulario renderizado completamente", fId, fName);
       });
     } catch (err: any) {
-      addLog("error", `Error al procesar snippet: ${err.message}`);
+      addLog("error", `Error al procesar snippet: ${err.message}`, fId, fName);
     }
   }, [addLog]);
 
   const loadForm = useCallback(async () => {
     if (!snippet.trim()) return;
     const saved = await addForm(formName, snippet);
-    if (saved) setActiveFormId(saved.id);
-    renderSnippet(snippet);
+    if (saved) {
+      setActiveFormId(saved.id);
+      renderSnippet(snippet, saved.id, saved.name);
+    } else {
+      renderSnippet(snippet);
+    }
     setShowInput(false);
     setSnippet("");
     setFormName("");
@@ -105,7 +114,8 @@ export default function Formularios() {
     const refreshed = await refreshForm(form.id);
     if (controller.signal.aborted) return;
 
-    renderSnippet(refreshed ? refreshed.snippet : form.snippet);
+    const target = refreshed ?? form;
+    renderSnippet(target.snippet, target.id, target.name);
     setReloading(false);
   }, [renderSnippet, refreshForm]);
 
@@ -119,12 +129,14 @@ export default function Formularios() {
     const refreshed = await refreshForm(activeFormId);
     if (controller.signal.aborted) return;
 
-    if (refreshed) renderSnippet(refreshed.snippet);
+    if (refreshed) renderSnippet(refreshed.snippet, refreshed.id, refreshed.name);
     setReloading(false);
-    addLog("info", "Datos del formulario recargados");
-  }, [activeFormId, refreshForm, renderSnippet, addLog]);
+    const af = getActiveForm();
+    addLog("info", "Datos del formulario recargados", af?.id, af?.name);
+  }, [activeFormId, refreshForm, renderSnippet, addLog, getActiveForm]);
 
   const deleteSavedForm = useCallback((id: string) => {
+    const form = forms.find((f) => f.id === id);
     removeForm(id);
     if (activeFormId === id) {
       if (containerRef.current) containerRef.current.innerHTML = "";
@@ -132,8 +144,8 @@ export default function Formularios() {
       setActiveFormId(null);
     }
     if (editingId === id) setEditingId(null);
-    addLog("info", "Formulario eliminado del historial");
-  }, [removeForm, activeFormId, editingId, addLog]);
+    addLog("info", "Formulario eliminado del historial", id, form?.name);
+  }, [removeForm, activeFormId, editingId, addLog, forms]);
 
   const startEditing = useCallback((form: SavedForm, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -144,10 +156,11 @@ export default function Formularios() {
   const saveEditing = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!editingId) return;
+    const form = forms.find((f) => f.id === editingId);
     const ok = await updateFormName(editingId, editName);
-    if (ok) addLog("info", "Nombre del formulario actualizado");
+    if (ok) addLog("info", "Nombre del formulario actualizado", editingId, form?.name);
     setEditingId(null);
-  }, [editingId, editName, updateFormName, addLog]);
+  }, [editingId, editName, updateFormName, addLog, forms]);
 
   const clearForm = useCallback(() => {
     if (containerRef.current) containerRef.current.innerHTML = "";

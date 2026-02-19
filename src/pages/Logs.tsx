@@ -49,9 +49,14 @@ export default function Logs() {
                   <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", config.className)} />
                   <div className="min-w-0 flex-1">
                     <p className="break-all font-mono text-xs text-foreground">{log.message}</p>
-                    <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">
-                      {log.timestamp.toLocaleTimeString("es-AR", { hour12: false })}
-                    </p>
+                    <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                      <span>{log.timestamp.toLocaleTimeString("es-AR", { hour12: false })}</span>
+                      {log.formName && (
+                        <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {log.formName}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               );

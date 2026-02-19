@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      form_logs: {
+        Row: {
+          created_at: string
+          form_id: string | null
+          form_name: string | null
+          id: string
+          level: string
+          message: string
+        }
+        Insert: {
+          created_at?: string
+          form_id?: string | null
+          form_name?: string | null
+          id?: string
+          level: string
+          message: string
+        }
+        Update: {
+          created_at?: string
+          form_id?: string | null
+          form_name?: string | null
+          id?: string
+          level?: string
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_logs_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "saved_forms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_forms: {
         Row: {
           created_at: string
